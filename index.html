@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>词网 · 英语单词关系图谱</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="canvasWrap">
+    <canvas id="graphCanvas"></canvas>
+
+    <!-- 左上角菜单按钮（默认收起侧边栏） -->
+    <button id="menuBtn" title="菜单（切换词库等）">☰</button>
+
+    <!-- 侧边抽屉导航：默认隐藏，点击 ☰ 展开 -->
+    <nav id="sidebar">
+      <div class="brand">
+        <span class="brand-icon">🕸️</span>
+        <span class="brand-name">词网</span>
+        <span class="brand-sub">英语单词关系图谱</span>
+      </div>
+      <div class="side-block">
+        <label class="side-label" for="librarySelect">词库</label>
+        <select id="librarySelect"></select>
+      </div>
+      <div class="side-block">
+        <label class="side-label" for="searchInput">搜索单词</label>
+        <input id="searchInput" type="text" placeholder="输入后回车定位节点" autocomplete="off" spellcheck="false">
+      </div>
+      <label class="field toggle"><input type="checkbox" id="labelToggle"><span>显示单词</span></label>
+      <div id="statInfo" class="stat"></div>
+    </nav>
+
+    <!-- 打开侧边栏时的半透明遮罩，点击关闭 -->
+    <div id="overlay"></div>
+
+    <div id="legend"></div>
+    <div id="hint">☰ 左侧菜单切换词库 · 拖拽节点调整布局 · 滚轮缩放 · 拖拽空白平移 · 点击节点高亮邻居 · Esc 取消</div>
+    <div id="tooltip" class="hidden"></div>
+  </main>
+
+  <script src="data/libraries.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
