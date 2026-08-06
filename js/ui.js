@@ -10,6 +10,7 @@
   const librarySelect = document.getElementById('librarySelect');
   const searchInput = document.getElementById('searchInput');
   const statInfo = document.getElementById('statInfo');
+  const hint = document.getElementById('hint');
   const menuBtn = document.getElementById('menuBtn');
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
@@ -28,6 +29,14 @@
   let running = false;
   let rafId = null;
   let lastStat = '';
+  let touchPinch = null;
+  let touchStartPos = null;
+  let touchMoved = false;
+  let lastTapAt = 0;
+  let lastTapWord = '';
+  let suppressMouseUntil = 0;
+  let lastFitW = 0;
+  let lastFitH = 0;
 
   /* ---------------- 渲染循环 ---------------- */
 
@@ -87,6 +96,16 @@
     return best;
   }
 
+  function isNarrowScreen() {
+    return window.matchMedia('(max-width: 767px), (hover: none) and (pointer: coarse)').matches;
+  }
+
+  function updateHint() {
+    hint.textContent = isNarrowScreen()
+      ? '☰ 菜单 · 拖动节点调整 · 双指缩放 · 拖动空白平移 · 点按节点高亮 · 再次点按聚焦'
+      : '☰ 左侧菜单切换词库 · 拖拽节点调整布局 · 滚轮缩放 · 拖拽空白平移 · 点击节点高亮邻居 · Esc 取消';
+  }
+
   function fitView() {
     const b = graph.bounds();
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -99,9 +118,19 @@
     const pad = 70;
     const bw = Math.max(1, b.maxX - b.minX + pad * 2);
     const bh = Math.max(1, b.maxY - b.minY + pad * 2);
-    view.scale = Math.max(0.25, Math.min(w / bw, h / bh, 1.3));
+    const fitScale = Math.min(w / bw, h / bh, 1.3) * (isNarrowScreen() ? 0.86 : 0.95);
+    view.scale = Math.max(0.22, fitScale);
     view.offsetX = w / 2 - (b.minX + b.maxX) / 2 * view.scale;
     view.offsetY = h / 2 - (b.minY + b.maxY) / 2 * view.scale;
+  }
+
+  function zoomAt(sx, sy, factor) {
+    const ns = Math.max(0.25, Math.min(3, view.scale * factor));
+    const k = ns / view.scale;
+    view.offsetX = sx - (sx - view.offsetX) * k;
+    view.offsetY = sy - (sy - view.offsetY) * k;
+    view.scale = ns;
+    render();
   }
 
   /* ---------------- 词库加载 ---------------- */
@@ -182,12 +211,15 @@
       sy = node.y * view.scale + view.offsetY;
     }
     const wrap = document.getElementById('canvasWrap');
+    if (isNarrowScreen()) tooltip.style.maxWidth = Math.max(160, wrap.clientWidth - 16) + 'px';
+    else tooltip.style.maxWidth = '';
     const tw = tooltip.offsetWidth;
     const th = tooltip.offsetHeight;
     let left = sx + 16;
     let top = sy - th / 2;
     if (left + tw > wrap.clientWidth - 8) left = sx - tw - 16;
     if (left < 8) left = 8;
+    if (left + tw > wrap.clientWidth - 8) left = Math.max(8, wrap.clientWidth - tw - 8);
     if (top + th > wrap.clientHeight - 8) top = wrap.clientHeight - th - 8;
     if (top < 8) top = 8;
     tooltip.style.left = left + 'px';
@@ -234,6 +266,175 @@
   }
 
   /* ---------------- 事件绑定 ---------------- */
+
+  function touchPositions(e) {
+    const rect = canvas.getBoundingClientRect();
+    return Array.from(e.touches).map(t => ({ sx: t.clientX - rect.left, sy: t.clientY - rect.top }));
+  }
+
+  function onTouchStart(e) {
+    e.preventDefault();
+    suppressMouseUntil = Date.now() + 450;
+    const pts = touchPositions(e);
+
+    if (pts.length === 2) {
+      if (state.draggingNode) {
+        state.draggingNode.fixed = false;
+        state.draggingNode = null;
+      }
+      state.panning = false;
+      state.hovered = null;
+      state.selected = null;
+      hideTooltip();
+      canvas.classList.add('dragging');
+      touchStartPos = null;
+      touchMoved = false;
+      touchPinch = {
+        startDist: Math.max(1, Math.hypot(pts[0].sx - pts[1].sx, pts[0].sy - pts[1].sy)),
+        startScale: view.scale
+      };
+      render();
+      return;
+    }
+
+    if (pts.length !== 1) return;
+    touchPinch = null;
+    touchStartPos = pts[0];
+    touchMoved = false;
+    state.lastX = pts[0].sx;
+    state.lastY = pts[0].sy;
+    state.mouseX = pts[0].sx;
+    state.mouseY = pts[0].sy;
+
+    const node = nodeAt(pts[0].sx, pts[0].sy);
+    if (node) {
+      state.draggingNode = node;
+      state.selected = node.word;
+      state.hovered = null;
+      node.fixed = true;
+    } else {
+      state.panning = true;
+      state.selected = null;
+      state.hovered = null;
+    }
+
+    hideTooltip();
+    canvas.classList.add('dragging');
+    graph.wake();
+    wake();
+    render();
+  }
+
+  function onTouchMove(e) {
+    e.preventDefault();
+    const pts = touchPositions(e);
+
+    if (pts.length === 2 && touchPinch) {
+      const dist = Math.hypot(pts[0].sx - pts[1].sx, pts[0].sy - pts[1].sy);
+      if (dist > 8) {
+        const midX = (pts[0].sx + pts[1].sx) / 2;
+        const midY = (pts[0].sy + pts[1].sy) / 2;
+        const ns = Math.max(0.25, Math.min(3, touchPinch.startScale * (dist / touchPinch.startDist)));
+        const k = ns / view.scale;
+        view.offsetX = midX - (midX - view.offsetX) * k;
+        view.offsetY = midY - (midY - view.offsetY) * k;
+        view.scale = ns;
+        touchMoved = true;
+        render();
+      }
+      return;
+    }
+
+    if (pts.length !== 1) return;
+    const p = pts[0];
+    if (touchStartPos && Math.hypot(p.sx - touchStartPos.sx, p.sy - touchStartPos.sy) > 4) {
+      touchMoved = true;
+    }
+
+    if (state.draggingNode) {
+      const w = toWorld(p.sx, p.sy);
+      state.draggingNode.x = w.x;
+      state.draggingNode.y = w.y;
+      graph.wake();
+      wake();
+    } else if (state.panning) {
+      view.offsetX += p.sx - state.lastX;
+      view.offsetY += p.sy - state.lastY;
+      render();
+    }
+
+    state.lastX = p.sx;
+    state.lastY = p.sy;
+    state.mouseX = p.sx;
+    state.mouseY = p.sy;
+  }
+
+  function onTouchEnd(e) {
+    e.preventDefault();
+
+    if (e.touches.length > 0) {
+      if (touchPinch) {
+        touchPinch = null;
+        if (state.draggingNode) {
+          state.draggingNode.fixed = false;
+          state.draggingNode = null;
+        }
+        const p = touchPositions(e)[0];
+        state.panning = true;
+        touchStartPos = p;
+        touchMoved = false;
+        state.lastX = p.sx;
+        state.lastY = p.sy;
+        state.mouseX = p.sx;
+        state.mouseY = p.sy;
+      }
+      return;
+    }
+
+    if (state.draggingNode) {
+      state.draggingNode.fixed = false;
+      state.draggingNode = null;
+      graph.wake();
+      wake();
+    }
+    state.panning = false;
+    canvas.classList.remove('dragging');
+
+    const wasTap = touchStartPos && !touchMoved;
+    const tappedWord = state.selected;
+    if (wasTap) {
+      const tapKey = tappedWord || '';
+      const now = performance.now();
+      if (now - lastTapAt < 320 && lastTapWord === tapKey) {
+        if (tappedWord) focusNode(tappedWord);
+        else { fitView(); render(); }
+        lastTapAt = 0;
+        lastTapWord = '';
+      } else {
+        lastTapAt = now;
+        lastTapWord = tapKey;
+        if (tappedWord) updateTooltip();
+      }
+    } else if (state.selected) {
+      updateTooltip();
+    }
+
+    touchPinch = null;
+    touchStartPos = null;
+    touchMoved = false;
+  }
+
+  function onTouchCancel() {
+    if (state.draggingNode) {
+      state.draggingNode.fixed = false;
+      state.draggingNode = null;
+    }
+    state.panning = false;
+    canvas.classList.remove('dragging');
+    touchPinch = null;
+    touchStartPos = null;
+    touchMoved = false;
+  }
 
   function bindEvents() {
     // 侧边抽屉导航：默认收起，点 ☰ 展开，点遮罩或按 Esc 收起
@@ -290,6 +491,7 @@
 
     // 鼠标拖拽节点 / 平移 / 悬停
     canvas.addEventListener('mousedown', e => {
+      if (Date.now() < suppressMouseUntil) return;
       const pos = getPos(e);
       state.lastX = pos.sx;
       state.lastY = pos.sy;
@@ -314,6 +516,7 @@
     });
 
     canvas.addEventListener('mousemove', e => {
+      if (Date.now() < suppressMouseUntil) return;
       const pos = getPos(e);
       if (state.draggingNode) {
         const w = toWorld(pos.sx, pos.sy);
@@ -341,6 +544,7 @@
     });
 
     window.addEventListener('mouseup', () => {
+      if (Date.now() < suppressMouseUntil) return;
       if (state.draggingNode) {
         state.draggingNode.fixed = false;
         state.draggingNode = null;
@@ -353,6 +557,7 @@
     });
 
     canvas.addEventListener('mouseleave', () => {
+      if (Date.now() < suppressMouseUntil) return;
       if (!state.draggingNode && !state.panning && state.hovered) {
         state.hovered = null;
         // 有选中的词时，卡片改为跟随该节点显示；否则隐藏
@@ -367,21 +572,23 @@
       e.preventDefault();
       const pos = getPos(e);
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      const ns = Math.max(0.25, Math.min(3, view.scale * factor));
-      const k = ns / view.scale;
-      view.offsetX = pos.sx - (pos.sx - view.offsetX) * k;
-      view.offsetY = pos.sy - (pos.sy - view.offsetY) * k;
-      view.scale = ns;
-      render();
+      zoomAt(pos.sx, pos.sy, factor);
     }, { passive: false });
 
     // 双击：节点 → 聚焦居中；空白 → 重新适配
     canvas.addEventListener('dblclick', e => {
+      if (Date.now() < suppressMouseUntil) return;
       const pos = getPos(e);
       const node = nodeAt(pos.sx, pos.sy);
       if (node) focusNode(node.word);
       else { fitView(); render(); }
     });
+
+    // 触屏：单指拖拽/平移、双指缩放、双击聚焦或适配
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onTouchCancel, { passive: false });
 
     // Esc 取消高亮并收起侧边栏
     document.addEventListener('keydown', e => {
@@ -394,17 +601,26 @@
       }
     });
 
-    window.addEventListener('resize', () => { resize(); render(); });
+    window.addEventListener('resize', () => {
+      const changed = resize();
+      updateHint();
+      if (changed) fitView();
+      render();
+    });
   }
 
   /* ---------------- 初始化 ---------------- */
 
   function resize() {
     const wrap = document.getElementById('canvasWrap');
+    const changed = Math.abs(wrap.clientWidth - lastFitW) > 60 || Math.abs(wrap.clientHeight - lastFitH) > 60;
+    lastFitW = wrap.clientWidth;
+    lastFitH = wrap.clientHeight;
     canvas.width = Math.max(1, wrap.clientWidth) * devicePixelRatio;
     canvas.height = Math.max(1, wrap.clientHeight) * devicePixelRatio;
     canvas.style.width = wrap.clientWidth + 'px';
     canvas.style.height = wrap.clientHeight + 'px';
+    return changed;
   }
 
   function init() {
@@ -415,6 +631,7 @@
       librarySelect.appendChild(o);
     });
     buildLegend();
+    updateHint();
     bindEvents();
     resize();
     loadLibrary(WORD_LIBRARIES[0].id);

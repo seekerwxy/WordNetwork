@@ -1,5 +1,6 @@
 # Reasonix 本地工具配置（不上传）
 reasonix.toml
+.reasonix/
 
 # 词书模板：仅供本地新建词书使用，不上传线上
 data/template.js
