@@ -69,10 +69,23 @@ window.WORD_LIBRARIES.push({
 
 两种方式任选：
 
-1. **复制模板**（推荐）：直接复制 `data/template.js` 为 `data/my-words.js`，按文件内的注释填写你的单词，刷新页面即可。模板里已内置一个可运行的示例。
+1. **复制现有词库文件**（推荐）：复制 `data/waijiaoshe-8a.js` 或 `data/libraries.js` 为 `data/my-words.js`，按上面的结构填写你的单词，刷新页面即可。
 2. **编辑内置文件**：直接修改 `data/libraries.js`，在 `window.WORD_LIBRARIES = [ ... ]` 数组里追加词库对象（结构同上）。
 
 项目已内置 `data/waijiaoshe-8a.js`，词库名称为“外研社八上”，数据来源为 `8A_U1_单词表.pdf`，可直接在词库下拉框中切换。
+
+内置词书（按需加载，切换时才读取文件，不拖慢首屏）：
+
+| 词书 | 词数 | 说明 |
+| --- | --- | --- |
+| 中考核心词 | 1500 | 高频优先，含派生/形似关系连线 |
+| 高考核心词 | 1500 | 高频优先，含派生/形似关系连线 |
+
+词书由 `tools/build-wordbooks.js` 生成，数据整理自：
+- [ECDICT](https://github.com/skywind3000/ECDICT)（MIT）——音标、释义、词形变化表（lemma.en.txt）、易混词表（resemble.txt）
+- [Qwerty Learner](https://github.com/RealKai42/qwerty-learner) 公开词表（中考/高考词汇，各考试大纲整理）
+
+`data/ecdict-lookup.js` 是**词典底座**：`window.ECDICT_LOOKUP` 提供 `词 → [音标, 释义, 标签, 当代词频序, bnc词频序]` 的紧凑映射。现收录 **3.2 万+ 词条**（约 5 MB），由 50+ 本主流词书合并去重而来：COCA 2 万高频词、牛津 3000/5000、四六级、考研、雅思、托福、GRE、SAT、GMAT、BEC、专四专八、PTE、朗文 3000 等。供未来的自定义词书 / 词典查询功能使用（本地离线查询，无需联网）。如需更大覆盖面，网络通畅时可下载 [ECDICT 全量](https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv)（62.9MB）后运行 `node tools/build-wordbooks.js ecdict` 升级为 76 万词全量底座。
 
 > 注意：文件必须是 **UTF-8 无 BOM** 编码（含中文时尤其重要）。
 
@@ -80,13 +93,17 @@ window.WORD_LIBRARIES.push({
 
 ```
 词网/
-├── index.html          # 页面骨架 + 工具栏
+├── index.html          # 页面骨架 + 工具栏（词书按需加载，不在此列出）
 ├── css/style.css       # 样式（浅色简约风）
 ├── js/graph.js         # 力导向物理引擎（排斥 / 弹簧 / 退火）
 ├── js/render.js        # Canvas 渲染（灰色节点 / 连线 / 高亮）+ 关系配色
-├── js/ui.js            # 交互：词库切换、搜索、悬停卡片、拖拽缩放平移
+├── js/ui.js            # 交互：词库切换（含懒加载）、搜索、悬停卡片、拖拽缩放平移
 ├── data/libraries.js   # 内置示例词库（55 词）
-└── data/waijiaoshe-8a.js # 外研社八上词书（来自 8A_U1_单词表.pdf）
+├── data/waijiaoshe-8a.js # 外研社八上词书（来自 8A_U1_单词表.pdf）
+├── data/wb-zhongkao.js # 中考核心词（1500 词，懒加载）
+├── data/wb-gaokao.js   # 高考核心词（1500 词，懒加载）
+├── data/ecdict-lookup.js # 词典底座（词 → 音标/释义/标签/词频，供未来自定义词书查询）
+└── tools/build-wordbooks.js # 词书构建脚本：node tools/build-wordbooks.js [qwerty|ecdict]
 ```
 
 ## 常见问题

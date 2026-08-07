@@ -4,3 +4,6 @@ reasonix.toml
 
 # 词书模板：仅供本地新建词书使用，不上传线上
 data/template.js
+
+# 词书构建脚本的原始数据（ECDICT 下载文件，体积大，仅本地构建用）
+.tmp-ecdict/

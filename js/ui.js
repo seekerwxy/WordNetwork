@@ -17,6 +17,14 @@
 
   const graph = new WordGraph();
   const view = { offsetX: 0, offsetY: 0, scale: 1 };
+
+  /* 按需加载的词书（不写进 index.html 的 <script>，切换时才动态注入，避免首屏全量加载） */
+  const LAZY_LIBRARIES = [
+    { id: 'wb-zhongkao', name: '中考核心词', file: 'data/wb-zhongkao.js' },
+    { id: 'wb-gaokao',   name: '高考核心词', file: 'data/wb-gaokao.js' },
+  ];
+  const lazyLoaded = id => WORD_LIBRARIES.some(l => l.id === id);
+
   const state = {
     hovered: null,       // 当前悬停的词名
     selected: null,      // 点击选中的词名
@@ -37,6 +45,8 @@
   let suppressMouseUntil = 0;
   let lastFitW = 0;
   let lastFitH = 0;
+  let lastLoadedId = null;      // 最近一次成功装载的词库 id（懒加载失败时还原用）
+  const loadingLazy = new Set(); // 加载中的懒加载词书 id（防快速切换时重复注入）
 
   /* ---------------- 渲染循环 ---------------- */
 
@@ -152,6 +162,7 @@
     hideTooltip();
     fitView();
     updateStat(lib);
+    lastLoadedId = lib.id;
     render();
     wake();
   }
@@ -461,10 +472,36 @@
       wake();
     });
 
-    // 词库切换
+    // 词库切换（懒加载词书：先动态注入 script，加载完成后再装载图）
     librarySelect.addEventListener('change', () => {
       searchInput.value = '';
-      loadLibrary(librarySelect.value);
+      const id = librarySelect.value;
+      if (lazyLoaded(id)) {
+        loadLibrary(id);
+      } else {
+        const item = LAZY_LIBRARIES.find(l => l.id === id);
+        if (item) {
+          if (loadingLazy.has(id)) return; // 已在加载中，等待 onload 统一处理
+          loadingLazy.add(id);
+          const s = document.createElement('script');
+          s.src = item.file;
+          s.onload = () => {
+            loadingLazy.delete(id);
+            // 仅在仍选中该词书且已真正注册时装载，避免迟到的回调覆盖用户后来的切换
+            if (lazyLoaded(id) && librarySelect.value === id) loadLibrary(id);
+          };
+          s.onerror = () => {
+            loadingLazy.delete(id);
+            showSearchHint('词书加载失败：' + item.file);
+            // 还原到最近一次成功装载的词库，用户可重新选择重试
+            const cur = librarySelect.value;
+            librarySelect.value = (cur === id) ? (lastLoadedId || WORD_LIBRARIES[0].id) : cur;
+          };
+          document.head.appendChild(s);
+        } else {
+          loadLibrary(id);
+        }
+      }
       setSidebar(false); // 切换后自动收起侧边栏
     });
 
@@ -628,6 +665,14 @@
       const o = document.createElement('option');
       o.value = lib.id;
       o.textContent = lib.name;
+      librarySelect.appendChild(o);
+    });
+    // 懒加载词书也出现在下拉框（切换时才真正加载文件）
+    LAZY_LIBRARIES.forEach(item => {
+      if (lazyLoaded(item.id)) return;
+      const o = document.createElement('option');
+      o.value = item.id;
+      o.textContent = item.name;
       librarySelect.appendChild(o);
     });
     buildLegend();
