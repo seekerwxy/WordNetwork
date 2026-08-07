@@ -109,7 +109,6 @@ html, body {
   letter-spacing: 1px;
 }
 
-#librarySelect,
 #searchInput {
   font: inherit;
   font-size: 13px;
@@ -121,11 +120,38 @@ html, body {
   color: var(--text);
   outline: none;
 }
-#librarySelect { cursor: pointer; }
-#librarySelect:focus,
 #searchInput:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.12);
+}
+#searchInput::placeholder { color: var(--muted); }
+
+/* 词书列表：展示全部，条目过多时上下滚动 */
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0 -2px;
+}
+.library-item {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.library-item:hover { background: #F0F2F5; }
+.library-item.active {
+  background: rgba(59, 91, 219, 0.10);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .field.toggle {

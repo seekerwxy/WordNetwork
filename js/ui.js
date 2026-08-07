@@ -7,7 +7,7 @@
   const canvas = document.getElementById('graphCanvas');
   const ctx = canvas.getContext('2d');
   const tooltip = document.getElementById('tooltip');
-  const librarySelect = document.getElementById('librarySelect');
+  const libraryList = document.getElementById('libraryList');
   const searchInput = document.getElementById('searchInput');
   const statInfo = document.getElementById('statInfo');
   const hint = document.getElementById('hint');
@@ -46,6 +46,7 @@
   let lastFitW = 0;
   let lastFitH = 0;
   let lastLoadedId = null;      // 最近一次成功装载的词库 id（懒加载失败时还原用）
+  let activeId = null;          // 用户当前选择的词书 id（懒加载竞态判断用）
   const loadingLazy = new Set(); // 加载中的懒加载词书 id（防快速切换时重复注入）
 
   /* ---------------- 渲染循环 ---------------- */
@@ -163,8 +164,60 @@
     fitView();
     updateStat(lib);
     lastLoadedId = lib.id;
+    refreshLibraryActive();
     render();
     wake();
+  }
+
+  /* ---- 词书列表交互 ---- */
+
+  /** 高亮当前词书条目 */
+  function refreshLibraryActive() {
+    const cur = lastLoadedId || activeId || '';
+    for (const el of libraryList.children) {
+      el.classList.toggle('active', el.dataset.id === cur);
+    }
+  }
+
+  /** 添加一个词书条目 */
+  function addLibraryItem(id, name) {
+    const el = document.createElement('div');
+    el.className = 'library-item';
+    el.dataset.id = id;
+    el.textContent = name;
+    el.addEventListener('click', () => selectLibrary(id));
+    libraryList.appendChild(el);
+  }
+
+  /** 选择词书：懒加载词书先动态注入 script，加载完成后再装载图 */
+  function selectLibrary(id) {
+    activeId = id;
+    searchInput.value = '';
+    if (lazyLoaded(id)) {
+      loadLibrary(id);
+    } else {
+      const item = LAZY_LIBRARIES.find(l => l.id === id);
+      if (item) {
+        if (loadingLazy.has(id)) return; // 已在加载中，等待 onload 统一处理
+        loadingLazy.add(id);
+        const s = document.createElement('script');
+        s.src = item.file;
+        s.onload = () => {
+          loadingLazy.delete(id);
+          // 仅当用户仍停留在该词书时装载，避免迟到的回调覆盖后续切换
+          if (lazyLoaded(id) && activeId === id) loadLibrary(id);
+        };
+        s.onerror = () => {
+          loadingLazy.delete(id);
+          showSearchHint('词书加载失败：' + item.file);
+          refreshLibraryActive(); // 高亮还原到已装载词书
+        };
+        document.head.appendChild(s);
+      } else {
+        loadLibrary(id);
+      }
+    }
+    setSidebar(false); // 切换后自动收起侧边栏
   }
 
   function buildLegend() {
@@ -447,12 +500,13 @@
     touchMoved = false;
   }
 
+  /* 侧边抽屉：展开 / 收起（供菜单按钮、遮罩、词书切换等处共用） */
+  function setSidebar(open) {
+    sidebar.classList.toggle('open', open);
+    overlay.classList.toggle('show', open);
+  }
+
   function bindEvents() {
-    // 侧边抽屉导航：默认收起，点 ☰ 展开，点遮罩或按 Esc 收起
-    function setSidebar(open) {
-      sidebar.classList.toggle('open', open);
-      overlay.classList.toggle('show', open);
-    }
     menuBtn.addEventListener('click', () => {
       setSidebar(!sidebar.classList.contains('open'));
     });
@@ -470,39 +524,6 @@
       fitView();
       render();
       wake();
-    });
-
-    // 词库切换（懒加载词书：先动态注入 script，加载完成后再装载图）
-    librarySelect.addEventListener('change', () => {
-      searchInput.value = '';
-      const id = librarySelect.value;
-      if (lazyLoaded(id)) {
-        loadLibrary(id);
-      } else {
-        const item = LAZY_LIBRARIES.find(l => l.id === id);
-        if (item) {
-          if (loadingLazy.has(id)) return; // 已在加载中，等待 onload 统一处理
-          loadingLazy.add(id);
-          const s = document.createElement('script');
-          s.src = item.file;
-          s.onload = () => {
-            loadingLazy.delete(id);
-            // 仅在仍选中该词书且已真正注册时装载，避免迟到的回调覆盖用户后来的切换
-            if (lazyLoaded(id) && librarySelect.value === id) loadLibrary(id);
-          };
-          s.onerror = () => {
-            loadingLazy.delete(id);
-            showSearchHint('词书加载失败：' + item.file);
-            // 还原到最近一次成功装载的词库，用户可重新选择重试
-            const cur = librarySelect.value;
-            librarySelect.value = (cur === id) ? (lastLoadedId || WORD_LIBRARIES[0].id) : cur;
-          };
-          document.head.appendChild(s);
-        } else {
-          loadLibrary(id);
-        }
-      }
-      setSidebar(false); // 切换后自动收起侧边栏
     });
 
     // 搜索：输入时即时高亮，回车定位居中
@@ -661,19 +682,10 @@
   }
 
   function init() {
-    WORD_LIBRARIES.forEach(lib => {
-      const o = document.createElement('option');
-      o.value = lib.id;
-      o.textContent = lib.name;
-      librarySelect.appendChild(o);
-    });
-    // 懒加载词书也出现在下拉框（切换时才真正加载文件）
+    WORD_LIBRARIES.forEach(lib => addLibraryItem(lib.id, lib.name));
+    // 懒加载词书也列在词书列表（切换时才真正加载文件）
     LAZY_LIBRARIES.forEach(item => {
-      if (lazyLoaded(item.id)) return;
-      const o = document.createElement('option');
-      o.value = item.id;
-      o.textContent = item.name;
-      librarySelect.appendChild(o);
+      if (!lazyLoaded(item.id)) addLibraryItem(item.id, item.name);
     });
     buildLegend();
     updateHint();
