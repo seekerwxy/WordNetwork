@@ -57,6 +57,12 @@ html, body {
   justify-content: center;
   transition: background 0.15s ease, transform 0.15s ease;
 }
+#menuBtn .menu-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor; /* 颜色跟随按钮文字色 */
+  display: block;
+}
 #menuBtn:hover { background: #F0F2F5; }
 #menuBtn:active { transform: scale(0.94); }
 
