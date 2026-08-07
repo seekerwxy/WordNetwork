@@ -12,7 +12,6 @@ const REL_STYLES = {
 /* 节点配色：灰色系简洁风 */
 const NODE_FILL = '#AEB4BB';      // 常态节点填充
 const FOCUS_COLOR = '#343A40';    // 高亮（悬停/选中）节点填充
-const NODE_TEXT_COLOR = '#FFFFFF'; // 节点上的单词文字
 const DIM_ALPHA = 0.10;           // 非邻居在聚焦时的透明度
 
 /**
@@ -59,6 +58,23 @@ function renderGraph(ctx, graph, view, state) {
     if (neighbors && !isNeighbor) ctx.globalAlpha = DIM_ALPHA;
     else ctx.globalAlpha = 1;
 
+    if (graph.labelsVisible) {
+      // “显示单词”模式：不画圆形节点，直接显示单词文本（缩放过小时隐藏避免重叠）
+      if (scale >= 0.55) {
+        const fontSize = Math.max(10, Math.min(16, n.word.length * 0.8 + 8));
+        ctx.font = (isFocus ? '700 ' : '500 ') + fontSize + 'px "Segoe UI", "PingFang SC", system-ui, sans-serif';
+        if (isFocus) {
+          // 聚焦：文字后加淡色背景条，弥补没有圆底的辨识度
+          const tw = ctx.measureText(n.word).width;
+          ctx.fillStyle = 'rgba(62,124,177,0.18)';
+          ctx.fillRect(n.x - tw / 2 - 5, n.y - fontSize / 2 - 3, tw + 10, fontSize + 6);
+        }
+        ctx.fillStyle = isFocus ? '#212529' : '#495057';
+        ctx.fillText(n.word, n.x, n.y);
+      }
+      continue;
+    }
+
     // 高亮节点加一圈淡色光晕
     if (isFocus) {
       ctx.beginPath();
@@ -82,13 +98,6 @@ function renderGraph(ctx, graph, view, state) {
       ctx.lineWidth = 1 / scale;
       ctx.strokeStyle = 'rgba(52,58,64,0.28)';
       ctx.stroke();
-    }
-
-    // 单词标签：默认隐藏，开启“显示单词”后绘制；缩放过小时同样隐藏避免重叠
-    if (graph.labelsVisible && scale >= 0.55) {
-      ctx.fillStyle = NODE_TEXT_COLOR;
-      ctx.font = '600 10px "Segoe UI", "PingFang SC", system-ui, sans-serif';
-      ctx.fillText(n.word, n.x, n.y);
     }
   }
 
