@@ -510,6 +510,8 @@
     menuBtn.addEventListener('click', () => {
       setSidebar(!sidebar.classList.contains('open'));
     });
+    // 侧边栏右上角收起按钮
+    document.getElementById('sidebarClose').addEventListener('click', () => setSidebar(false));
     overlay.addEventListener('click', () => setSidebar(false));
 
     // 显示单词开关：切换后重算节点半径并重新布局

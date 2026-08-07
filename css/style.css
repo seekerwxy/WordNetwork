@@ -88,7 +88,7 @@ html, body {
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   white-space: nowrap;
   padding-bottom: 12px;
@@ -96,7 +96,31 @@ html, body {
 }
 .brand-icon { font-size: 20px; }
 .brand-name { font-size: 19px; font-weight: 700; letter-spacing: 1px; }
-.brand-sub { font-size: 12px; color: var(--muted); }
+
+/* 侧边栏右上角收起按钮（书本图标，样式同左上角菜单按钮） */
+.sidebar-close {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+  flex: none;
+}
+.sidebar-close:hover { background: #F0F2F5; }
+.sidebar-close:active { transform: scale(0.92); }
+.sidebar-close .close-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  display: block;
+}
 
 .side-block {
   display: flex;
@@ -104,9 +128,20 @@ html, body {
   gap: 6px;
 }
 .side-label {
-  font-size: 12px;
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111111;
   letter-spacing: 1px;
+}
+.side-label .label-icon {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+  stroke: currentColor;
+  flex: none;
 }
 
 #searchInput {
@@ -174,7 +209,7 @@ html, body {
 .stat { font-size: 12px; color: var(--muted); line-height: 1.6; }
 .stat.warn { color: #D64A45; }
 
-/* ---- 遮罩：打开侧边栏时盖住画布，点击关闭 ---- */
+/* ---- 遮罩：侧边栏打开时不再遮挡画布（词网保持可交互），关闭靠右上角按钮 / Esc ---- */
 #overlay {
   position: absolute;
   inset: 0;
@@ -185,8 +220,8 @@ html, body {
   transition: opacity 0.25s ease;
 }
 #overlay.show {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 0;          /* 不显示遮罩，画布可正常使用 */
+  pointer-events: none;
 }
 
 /* ---- 图例 ---- */
