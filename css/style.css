@@ -139,8 +139,9 @@ html, body {
 .side-label .label-icon {
   width: 15px;
   height: 15px;
-  fill: currentColor;
+  fill: none;
   stroke: currentColor;
+  stroke-width: 2;
   flex: none;
 }
 
