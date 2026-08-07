@@ -1,0 +1,4 @@
+# Cloudflare Pages 构建配置（source of truth）
+# 纯静态站：无构建命令，输出目录为仓库根目录
+name = "wordnetwork"
+pages_build_output_dir = "./"
